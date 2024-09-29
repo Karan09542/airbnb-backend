@@ -1,0 +1,5 @@
+.env
+/static/hotel_img
+/Scripts
+node_modules
+/check.js
