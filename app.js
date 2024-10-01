@@ -16,7 +16,9 @@ dotenv.config({path: "./.env"})
 const app = express()
 
 app.use(cors({
-    origin: "https://airbnb-frontend-weld.vercel.app/"
+    origin: "https://airbnb-frontend-weld.vercel.app/",
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods
+    credentials: true,  // Allow credentials (cookies, auth headers, etc.)
 }))
 
 // Parse URL-encoded bodies
