@@ -15,6 +15,10 @@ dotenv.config({path: "./.env"})
 
 const app = express()
 
+app.use(cors({
+    origin: "https://airbnb-frontend-weld.vercel.app/"
+}))
+
 // Parse URL-encoded bodies
 app.use(express.urlencoded({extended: true}))
 app.use(cookieParser())
@@ -25,7 +29,6 @@ app.use(express.json()) // to excess body in request
 app.use("/user", UserRouter)
 app.use("/hotel", HotelRouter)
 app.use("/book", BookingRouter )
-app.use(cors())
 // app.use(cors({
 //     origin: 'http://localhost:5173', // Allow only this origin
 //     methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods

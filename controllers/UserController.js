@@ -50,6 +50,7 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         if(user){
             return next(new appError("Unable to create account. Please try again or contact support.", 400));
         }
+        console.log("email_verified", email_verified)
         const newUser = await UserModel.create({
             firstName,
             email,
@@ -57,7 +58,7 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
             lastName,
             image,
             googleId,
-            email_verified
+            emailVerified:email_verified
         });
         const authToken = await signJWT(newUser._id)
 
@@ -197,6 +198,12 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
             })
             return res.status(200).json({
                 status: "success",
+                message: "Login successfully"
+            })
+        } else {
+            return res.status(401).json({
+                status: "fail",
+                message: "Please Signup first!"
             })
         }
     }
