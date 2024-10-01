@@ -1,6 +1,5 @@
 const nodemailer = require("nodemailer")
-const fs = require("fs/promises")
-const path = require("path")
+const htmlTempletes = require("../static/htmlTempletes.json")
 
 const os = require("os")
 
@@ -16,9 +15,11 @@ for(let interfaceName in networkInterfaces){
     }
 }
 
+
+
 const sendEmail = async function(options) {
-    let html = await fs.readFile(path.join(path.resolve("static"), "ram.html"), "utf8")
-    html = html.replace("{{subject}}", options.subject).replace("{{message}}", options.message).replace("{{reset_url}}", `http://${ipaddress}:5173/reset-password?resetToken=` + options.resetToken)
+    let html = htmlTempletes[options.html_file]
+    html = html.replace("{{subject}}", options.subject).replace("{{message}}", options.message).replace("{{url}}", `${process.env.FRONTEND_URL||"http://localhost:5173/"}${options.path}?resetToken=` + options.token)
 
     const transporter = nodemailer.createTransport({
 
@@ -50,4 +51,26 @@ const sendEmail = async function(options) {
     console.log("sent")
 }
 
-module.exports = sendEmail;
+module.exports.sendEmail = sendEmail;
+
+const sendEmailToVerifyEmail = async function(user,res) {
+    const [verifyEmailToken, otp] = await user.createVerifyEmailToken();
+    await user.save({validateBeforeSave: false});
+
+    const veryfyEmailOptions = {
+        email:user.email,
+        subject: "Verify Your Email",
+        message: `Please click the button below to verify your email address.`,
+        token: verifyEmailToken,
+        html_file: "verifyEmail.html",
+        path: "verify-email"
+    }
+    await sendEmail(veryfyEmailOptions)
+    
+    return res.status(201).json({
+        status: "success",
+        otp,
+        message: "An email is sent in your Inbox Please verify Your email"
+    })
+}
+module.exports.sendEmailToVerifyEmail = sendEmailToVerifyEmail;

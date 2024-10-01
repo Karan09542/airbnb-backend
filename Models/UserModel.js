@@ -79,6 +79,14 @@ const UserSchema = new mongoose.Schema({
         type: Date,
         // required: [true, "Please provide date of birth"]
     },
+
+    forgetMaxTime: {
+        type: Number,
+        default: 0,
+        max: 3,
+        min: 0
+    },
+    forgetAtTommorrow: Date,
     // auth by google
     emailVerified: {
         type: Boolean,
@@ -87,8 +95,10 @@ const UserSchema = new mongoose.Schema({
     googleId: {
         type: String,
         unique: true,
-    }
-
+    },
+    otp: Number,
+    verifyEmailToken: String,
+    verifyEmailTokenExpires: Date
 })
 
 UserSchema.pre("save", async function(next){
@@ -145,6 +155,15 @@ UserSchema.methods.createPasswordResetToken = async function() {
 
 UserSchema.methods.isCorrectPassword = async function(rawPassword){
     return bcrypt.compare(rawPassword, this.password)
+}
+
+UserSchema.methods.createVerifyEmailToken = async function() {
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    const verifyEmailToken = crypto.randomBytes(32).toString("hex")
+    this.verifyEmailToken = await crypto.createHash("sha256").update(verifyEmailToken).digest("hex");
+    this.verifyEmailTokenExpires = Date.now() + 10*60*1000;
+    this.otp = otp;
+    return [verifyEmailToken, otp]
 }
 
 const UserModel = mongoose.model("User_Authenticate", UserSchema)

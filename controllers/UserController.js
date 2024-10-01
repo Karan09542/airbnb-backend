@@ -3,8 +3,12 @@ const { CatchAsync } = require("../errorHandling/utils");
 const UserModel = require("../Models/UserModel");
 const jwt = require("jsonwebtoken")
 const util = require("util");
-const sendEmail = require("../utils/email_utility");
+const {sendEmail,sendEmailToVerifyEmail} = require("../utils/email_utility");
 const crypto = require("crypto")
+const hasMXRecord = require("../utils/hasMXRecord");
+const { send } = require("process");
+const bcrypt = require("bcrypt")
+
 
 async function signJWT(userId){
     return jwt.sign(
@@ -41,7 +45,6 @@ exports.authorize = CatchAsync(async function(req, res, next){
 })
 exports.UserSignupController = CatchAsync(async function(req, res, next) {
     const {firstName, username, email, password, passwordConfirm, role, lastName, dob, image, googleId, email_verified} = req.body;
-    console.log(googleId, email_verified)
     if(googleId){
         const user = await UserModel.findOne({googleId});
         if(user){
@@ -72,15 +75,27 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         return next(new appError("Please provide email and password!", 400));
     }
 
+    await hasMXRecord(email).then((res) => {
+        if (!res) {
+            return next(new appError("Please provide valid Email Id", 401));
+        }
+    }).catch((err) => {
+        return next(new appError("Please provide valid Email Id", 401));
+    })
+
+
     if (password !== passwordConfirm) {
         return next(new appError("Passwords does not match!", 400));
     }
     const user = await UserModel.findOne({email});
     if(user){
-        console.log("here", "harharmahadev")
-        console.log("user", user)
+        if(user.emailVerified){
         return next(new appError("Unable to create account. Please try again or contact support.", 400));
-    }
+        } else {
+            sendEmailToVerifyEmail(user,res)
+            return;
+        }
+}
     const newUser = await UserModel.create({
         firstName,
         email,
@@ -93,16 +108,55 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         image
 
     });
-    const token = await signJWT(newUser._id)
+    return sendEmailToVerifyEmail(newUser, res);
+})
 
-    res.cookie("authToken", token, {
+exports.VerifyEmailController = CatchAsync(async function(req, res, next){
+    const {token, otp} = req.body
+    if(!token || !otp){
+        return next(new appError("Please provide token and otp", 400))
+    }
+
+    let numOtp = otp
+    numOtp = Number(numOtp)
+
+    if(isNaN(numOtp)){
+        return next(new appError("Please provide valid otp"))
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await UserModel.findOne({verifyEmailToken: hashedToken});
+    if(!user){
+        return next(new appError("Invalid token", 400)) 
+    }
+
+    if(user.verifyEmailTokenExpires < Date.now()){
+        return next(new appError("Token has expired. Please generate a new one!", 400)) 
+    }
+    if(user.otp !== numOtp){
+        console.log(typeof numOtp, numOtp)
+        return next(new appError("Invalid otp", 400)) 
+    }
+
+    user.emailVerified = true
+    user.verifyEmailToken = undefined
+    user.verifyEmailTokenExpires = undefined
+    user.otp = undefined
+
+    await user.save();
+
+    const JWTtoken = await signJWT(user._id)
+
+    res.cookie("authToken", JWTtoken, {
         httpOnly:true,
-        expires: new Date(Date.now() + 15*60*1000),
+        expires: new Date(Date.now() + 30*24*60*60*1000),
 
     })
-    res.status(201).json({
+
+    res.status(200).json({
         status: "success",
-        // user: user,
+        message: "Email varification sucessfull"
     })
 })
 
@@ -131,7 +185,6 @@ exports.updateUserRoleToHostController = CatchAsync(async function(req, res, nex
 
 exports.UserLoginController = CatchAsync(async function(req, res, next) {
     // 1: Extract email and password from the request
-    console.log(req.cookies)
     const { email, password, googleId, email_verified } = req.body;
 
     if(googleId && email_verified){
@@ -140,7 +193,7 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
             const authToken = await signJWT(user._id)
             res.cookie("authToken", authToken, {
                 httpOnly:true,
-                expires: new Date(Date.now() + 15*60*1000)
+                expires: new Date(Date.now() + 30*24*60*60*1000)
             })
             return res.status(200).json({
                 status: "success",
@@ -158,13 +211,17 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
         next(new appError("Invalid email or password!", 401));
         return;
     }
+
+    if(!user.emailVerified){
+        return next(new appError("Please verify your email address!", 403))
+    }
     // 4: Generate a JWT token for the client
     const token = await signJWT(user._id)
 
     // 5: Respond
     res.cookie("authToken",token, {
         httpOnly:true,
-        expires: new Date(Date.now() + 15*60*1000)
+        expires: new Date(Date.now() + 30*24*60*60*1000)
     })
     res.status(201).json({
         status: "success",
@@ -222,6 +279,23 @@ exports.forgotPasswordController = CatchAsync(async function(req, res, next){
     if(!user){
         return next(new appError("Please check your email", 404))
     }
+
+    if(user.forgetMaxTime < 3){
+        user.forgetMaxTime += 1
+    } else {
+        if(!user.forgetAtTommorrow){
+            user.forgetAtTommorrow = Date.now() + 24*60*60*1000
+            return next(new appError("Please try after 24 hours", 400))
+        }else {
+            if(user.forgetAtTommorrow >= Date.now()){
+                return next(new appError("Please try after 24 hours", 400))
+        } else {
+            user.forgetAtTommorrow = undefined;
+            user.forgetMaxTime = 0;
+        }
+    }
+    }
+
     const resetToken = await user.createPasswordResetToken();
 
     await user.save({validateBeforeSave: false}); // this is required if you use "=" to update values
@@ -230,7 +304,9 @@ exports.forgotPasswordController = CatchAsync(async function(req, res, next){
         email: email,
         subject: "Reset Your Password!",
         message: `Please find below your Password reset button.Thanks for using our application`,
-        resetToken: resetToken
+        token: resetToken,
+        html_file: "forgetPassword.html",
+        path: "reset-password"
     }
     await sendEmail(emailOptions)
     res.status(200).json({
@@ -240,6 +316,7 @@ exports.forgotPasswordController = CatchAsync(async function(req, res, next){
 })
 exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     const {password, passwordConfirm, token} = req.body;
+    console.log(req.body)
 
     if(!password || !passwordConfirm || !token){
         return next(new appError("Please provide all fields", 400))
@@ -268,7 +345,7 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     // }
 
     // Step 2: update the password
-    user.password = password;
+    user.password = await bcrypt.hash(password, 11);
     // Step 3: Reset the passwordResetToken in DB. Why? So that passwordResetToken is only use 1  time by user
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
@@ -279,7 +356,7 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
 
     res.cookie("authToken", JWTtoken, {
         httpOnly:true,
-        expires: new Date(Date.now() + 15*60*1000),
+        expires: new Date(Date.now() + 30*24*60*60*1000),
 
     })
     res.status(200).json({

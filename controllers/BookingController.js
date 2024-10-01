@@ -53,7 +53,7 @@ exports.Booking = CatchAsync(async function(req, res,next){
 exports.ReservationDetail = CatchAsync(async function(req, res, next){
     const reservations = await BookingModel.find({user: req.userId, reservationStatus: "accepted"})
     .populate("hotel")
-    console.log(reservations)
+    // console.log(reservations)
 
     if(!reservations){
         return res.status(404).json({
@@ -121,7 +121,7 @@ const checkReservationStatus = (status) => {
 
 exports.deleteCancelledBooking = CatchAsync(async function(req, res, next){
     await checkReservationStatus(["cancelled"])(req,res,next)
-    console.log("bookingId",req.bookingId)
+    // console.log("bookingId",req.body.bookingId)
     await BookingModel.findByIdAndDelete(req.body.bookingId)
     
     return res.status(200).json({

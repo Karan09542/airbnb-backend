@@ -38,7 +38,7 @@ exports.getHotel = CatchAsync(async function(req,res,next){
     let queryString = JSON.stringify(queryObj)
     queryString = queryString.replace(/\b(gte|gt|lte|lt)\b/g, (match)=> `$${match}`)
     queryObj = JSON.parse(queryString)
-    const price = queryObj.price
+    // const price = queryObj.price
 
     const excludeKeys = ["page", "sort", "limit", "fields", "skip", "searchText"]
     excludeKeys.forEach(key => {
@@ -88,7 +88,7 @@ exports.getHotel = CatchAsync(async function(req,res,next){
     // Sorting
     if(req.query.sort){
         const sortingQuery = req.query.sort.split(",").join(" ")
-        console.log("sorting",sortingQuery)
+        // console.log("sorting",sortingQuery)
         hotelsQuery = hotelsQuery.sort(sortingQuery)
     }
 
@@ -172,7 +172,7 @@ exports.dashboard = CatchAsync(async function(req, res, next){
 })
 
 exports.getFavorite = CatchAsync(async function(req, res, next){
-    console.log(req.user)
+    // console.log(req.user)
     const favoriteHotels = req.user.favorites
     
     const hotel = await HotelModel.find({_id: {$in: favoriteHotels}})
@@ -191,10 +191,10 @@ exports.setFavorite = CatchAsync(async function(req, res, next) {
     let favorites = req.user.favorites || [];  // Ensure favorites is always an array
     let setFlag = req.query.setFlag === 'true';  // Convert string to boolean if passed via query string
     let message; 
-    console.log(setFlag)
+    // console.log(setFlag)
     // Check if the hotel is already in favorites
     const hotelIndex = favorites.indexOf(req.params.hotelId);
-    console.log(hotelIndex)
+    // console.log(hotelIndex)
     if (hotelIndex === -1 && setFlag) {
         favorites.push(req.params.hotelId);
         message = "Added to favorites";
