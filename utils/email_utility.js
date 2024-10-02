@@ -19,7 +19,7 @@ for(let interfaceName in networkInterfaces){
 
 const sendEmail = async function(options) {
     let html = htmlTempletes[options.html_file]
-    html = html.replace("{{subject}}", options.subject).replace("{{message}}", options.message).replace("{{url}}", `${process.env.FRONTEND_URL||"http://localhost:5173/"}${options.path}?resetToken=` + options.token)
+    html = html.replace("{{subject}}", options.subject).replace("{{message}}", options.message).replace("{{url}}", `${(process.env.FRONTEND_URL&& process.env.FRONTEND_URL + "/")||"http://localhost:5173/"}${options.path}?resetToken=` + options.token)
 
     const transporter = nodemailer.createTransport({
 
