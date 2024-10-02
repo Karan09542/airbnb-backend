@@ -9,7 +9,7 @@ const hasMXRecord = require("../utils/hasMXRecord");
 const { send } = require("process");
 const bcrypt = require("bcrypt")
 
-const isSecure = process.env.Secure === "true"
+const isSecure = process.env.NODE_ENV === "production"
 
 
 async function signJWT(userId){
