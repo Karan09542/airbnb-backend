@@ -9,6 +9,8 @@ const hasMXRecord = require("../utils/hasMXRecord");
 const { send } = require("process");
 const bcrypt = require("bcrypt")
 
+const isSecure = process.env.Secure === "true"
+
 
 async function signJWT(userId){
     return jwt.sign(
@@ -65,7 +67,7 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         res.cookie("authToken", authToken, {
             httpOnly:true,
             expires: new Date(Date.now() + 15*60*1000),
-            secure: process.env.Secure || false,
+            secure: isSecure,
             sameSite: "None",
 
         })
@@ -154,7 +156,7 @@ exports.VerifyEmailController = CatchAsync(async function(req, res, next){
     res.cookie("authToken", JWTtoken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
-        secure: process.env.Secure || false,
+        secure: isSecure,
         sameSite: "None",
 
     })
@@ -199,7 +201,7 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
             res.cookie("authToken", authToken, {
                 httpOnly:true,
                 expires: new Date(Date.now() + 30*24*60*60*1000),
-                secure: process.env.Secure || false,
+                secure: isSecure,
                 sameSite: "None",
             })
             return res.status(200).json({
@@ -235,7 +237,7 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
     res.cookie("authToken",token, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
-        secure: process.env.Secure || false,
+        secure: isSecure,
         sameSite: "None",
     })
     res.status(201).json({
@@ -268,7 +270,7 @@ exports.isLogin = CatchAsync(async function(req, res, next){
 exports.Logout = CatchAsync(async function(req, res , next){
     res.clearCookie("authToken",{
         httpOnly: true,
-        secure: process.env.Secure || false,
+        secure: isSecure,
         sameSite: "None",
     })
     res.status(200).json({
@@ -376,7 +378,7 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     res.cookie("authToken", JWTtoken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
-        secure: process.env.Secure || false,
+        secure: isSecure,
         sameSite: "None",
 
     })
