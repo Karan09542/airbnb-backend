@@ -10,5 +10,5 @@ UserRouter.post("/change_password", updatePasswordController)
 UserRouter.post("/forgot_password", forgotPasswordController)
 UserRouter.post("/isLogin", isLogin)
 UserRouter.post("/logout", Logout)
-UserRouter.get("/hostRole", updateUserRoleToHostController)
+UserRouter.patch("/hostRole", updateUserRoleToHostController)
 module.exports = UserRouter
