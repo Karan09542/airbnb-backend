@@ -50,7 +50,7 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         if(user){
             return next(new appError("Unable to create account. Please try again or contact support.", 400));
         }
-        console.log("email_verified", email_verified)
+        
         const newUser = await UserModel.create({
             firstName,
             email,
@@ -65,6 +65,8 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
         res.cookie("authToken", authToken, {
             httpOnly:true,
             expires: new Date(Date.now() + 15*60*1000),
+            secure: process.env.Secure || false,
+            sameSite: "None",
 
         })
         return res.status(200).json({
@@ -152,6 +154,8 @@ exports.VerifyEmailController = CatchAsync(async function(req, res, next){
     res.cookie("authToken", JWTtoken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
+        secure: process.env.Secure || false,
+        sameSite: "None",
 
     })
 
@@ -194,7 +198,9 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
             const authToken = await signJWT(user._id)
             res.cookie("authToken", authToken, {
                 httpOnly:true,
-                expires: new Date(Date.now() + 30*24*60*60*1000)
+                expires: new Date(Date.now() + 30*24*60*60*1000),
+                secure: process.env.Secure || false,
+                sameSite: "None",
             })
             return res.status(200).json({
                 status: "success",
@@ -228,7 +234,9 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
     // 5: Respond
     res.cookie("authToken",token, {
         httpOnly:true,
-        expires: new Date(Date.now() + 30*24*60*60*1000)
+        expires: new Date(Date.now() + 30*24*60*60*1000),
+        secure: process.env.Secure || false,
+        sameSite: "None",
     })
     res.status(201).json({
         status: "success",
@@ -258,7 +266,11 @@ exports.isLogin = CatchAsync(async function(req, res, next){
     
 })
 exports.Logout = CatchAsync(async function(req, res , next){
-    res.clearCookie("authToken")
+    res.clearCookie("authToken",{
+        httpOnly: true,
+        secure: process.env.Secure || false,
+        sameSite: "None",
+    })
     res.status(200).json({
         status: "success"
     })
@@ -364,6 +376,8 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     res.cookie("authToken", JWTtoken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
+        secure: process.env.Secure || false,
+        sameSite: "None",
 
     })
     res.status(200).json({
