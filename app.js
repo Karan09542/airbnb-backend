@@ -17,7 +17,7 @@ const app = express()
 
 app.use(cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173/",
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods
+    methods: ['GET', 'POST', 'PUT', 'DELETE', "PATCH"], // Allowed methods
     credentials: true,  // Allow credentials (cookies, auth headers, etc.)
 }))
 
