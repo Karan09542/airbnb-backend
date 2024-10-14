@@ -24,12 +24,12 @@ const sendEmail = async function(options) {
     const transporter = nodemailer.createTransport({
 
         // if Email Trap
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
+        // host: process.env.EMAIL_HOST,
+        // port: process.env.EMAIL_PORT,
         // secure: false,
 
         // if Gmail configured already
-        // service: "gmail",
+        service: "gmail",
         logger: true,
         auth: {
             user: process.env.EMAIL_USERNAME,
