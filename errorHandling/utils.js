@@ -52,4 +52,4 @@ exports.handleMongoServerError = () =>
     new appError("Please provide valid Email Id", 401)
 
 exports.handleMongoValidationError = ()=>
-    new appError("Please provide required fields", 403 )
+    new appError("Please provide required fields", 422 )

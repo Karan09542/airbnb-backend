@@ -117,7 +117,11 @@ UserSchema.pre("save", async function(next){
         this.username = `${this.firstName} ${this.lastName}`
     }
 
-    if (!this.isModified("password")) return;
+    if (!this.isModified("password")) {
+        console.log("password not modified! महादेव नहीं होता है!")
+        return
+    };
+    console.log("password modified! महादेव होता है!")
 
     this.password = await bcrypt.hash(this.password, 11);
     this.passwordConfirm = undefined;

@@ -7,14 +7,20 @@ const BookingModel = require("../Models/booking_model");
 const HotelModel = require("../Models/hotels_model");
 
 exports.authorizeBooking = CatchAsync(async function(req, res, next){
-    const token = req.cookies.authToken
-
-    if(!token){
-        return next(new appError("NOT_LOGGED_IN, Please log in again", 401))
+    let token;
+    if(req.headers.authorization && req.headers.authorization.startsWith("Bearer")){
+        token = req.headers.authorization.split(" ")[1]
     }
-    const decoded = await util.promisify(jwt.verify)(token, process.env.JWT_SECRET)
-    if(!decoded){
-        return next(new appError("NOT_LOGGED_IN, Please log in again", 401))
+
+    if (!token) {
+        return  next(new appError("NOT_LOGGED_IN, Please log in again", 401));
+    }
+    
+    let decoded;
+    try{
+        decoded = await util.promisify(jwt.verify)(token, process.env.JWT_ACCESS_SECRET)
+    }catch(err){
+        return next(new appError("NOT_LOGGED_IN, Please log in again", 401));
     }
     const currentUser = await UserModel.findById(decoded.id)
     if(!currentUser){

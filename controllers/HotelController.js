@@ -28,7 +28,6 @@ exports.createHotel = CatchAsync(async function(req, res, next){
 })
 
 exports.getHotel = CatchAsync(async function(req,res,next){
-
     // const getHotel = await HotelModel.find(req.query)
     // below these using chaining for query
     // const getHotel = await HotelModel.find().where("location").equals("Riverside")
@@ -145,13 +144,20 @@ exports.getRoomHostedByDetails = CatchAsync(async function(req, res, next){
 
 exports.checkRole = (roles) => {
     return CatchAsync(async function (req, res, next){
-        const authToken = req.cookies.authToken
-        if(!authToken){
-            return next(new appError("NOT_LOGGED_IN", 401))
+        let token;
+        if(req.headers.authorization && req.headers.authorization.startsWith("Bearer")){
+            token = req.headers.authorization.split(" ")[1]
         }
-        const decoded = await util.promisify(jwt.verify)(authToken, process.env.JWT_SECRET)
-        if(!decoded){
-            return next(new appError("NOT_LOGGED_IN", 401))
+
+        if (!token) {
+            return  next(new appError("NOT_LOGGED_IN", 401));
+        }
+        
+        let decoded;
+        try{
+            decoded = await util.promisify(jwt.verify)(token, process.env.JWT_ACCESS_SECRET)
+        }catch(err){
+            return next(new appError("NOT_LOGGED_IN", 401));
         }
         
         const user = await UserModel.findById(decoded.id)

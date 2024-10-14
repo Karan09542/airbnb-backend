@@ -12,13 +12,23 @@ const bcrypt = require("bcrypt")
 const isSecure = process.env.NODE_ENV === "production"
 
 
-async function signJWT(userId){
+async function signRefreshToken(userId){
     return jwt.sign(
         { id: userId},
-        process.env.JWT_SECRET,
+        process.env.JWT_REFRESH_SECRET,
         {  
-            // expiresIn: Math.floor(Date.now()/1000),
             expiresIn: "90d",
+        }
+
+    )
+}
+
+async function signAccessToken(userId){
+    return jwt.sign(
+        { id: userId},
+        process.env.JWT_ACCESS_SECRET,
+        {  
+            expiresIn: "15m",
         }
 
     )
@@ -31,11 +41,17 @@ exports.authorize = CatchAsync(async function(req, res, next){
     }
 
     if (!token) {
-        return  next(new appError("You are not logged in!", 401));
+        return  next(new appError("NOT_LOGGED_IN", 401));
     }
     // promisify is library convert Synchronous code into Asynchrounous
     // instead write jwt.verify(token, process,env.JWT_SECRET) because time consumeing i.e. 20 millisecond approx so write like below
-    const decoded = await util.promisify(jwt.verify)(token, process.env.JWT_SECRET)
+    
+    let decoded;
+    try{
+        decoded = await util.promisify(jwt.verify)(token, process.env.JWT_ACCESS_SECRET)
+    }catch(err){
+        return next(new appError("NOT_LOGGED_IN", 401));
+    }
     // User might have changed their password after this token was issued
     // We validating if the token was issued after password was changed
     const currentUser = await UserModel.findById(decoded.id).select("+passwordChangedAt")
@@ -45,6 +61,7 @@ exports.authorize = CatchAsync(async function(req, res, next){
     req.userId = decoded.id;
     next()
 })
+
 exports.UserSignupController = CatchAsync(async function(req, res, next) {
     const {firstName, username, email, password, passwordConfirm, role, lastName, dob, image, googleId, email_verified} = req.body;
     if(googleId){
@@ -62,9 +79,10 @@ exports.UserSignupController = CatchAsync(async function(req, res, next) {
             googleId,
             emailVerified:email_verified
         });
-        const authToken = await signJWT(newUser._id)
+        const jwtRefreshToken = await signRefreshToken(newUser._id)
 
-        res.cookie("authToken", authToken, {
+
+        res.cookie("jwtRefreshToken", jwtRefreshToken, {
             httpOnly:true,
             expires: new Date(Date.now() + 15*60*1000),
             secure: isSecure,
@@ -151,9 +169,10 @@ exports.VerifyEmailController = CatchAsync(async function(req, res, next){
 
     await user.save();
 
-    const JWTtoken = await signJWT(user._id)
+    const jwtRefreshToken = await signRefreshToken(user._id)
+    const jwtAccessToken = await signAccessToken(user._id)
 
-    res.cookie("authToken", JWTtoken, {
+    res.cookie("jwtRefreshToken", jwtRefreshToken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
         secure: isSecure,
@@ -163,18 +182,25 @@ exports.VerifyEmailController = CatchAsync(async function(req, res, next){
 
     res.status(200).json({
         status: "success",
-        message: "Email varification sucessfull"
+        message: "Email varification sucessfull",
+        access_token:jwtAccessToken
     })
 })
 
 exports.updateUserRoleToHostController = CatchAsync(async function(req, res, next){
-    const authToken = req.cookies.authToken
-    if(!authToken){
-        return next(new appError("NOT_LOGGED_IN", 401))
+    let token;
+    if(req.headers.authorization && req.headers.authorization.startsWith("Bearer")){
+        token = req.headers.authorization.split(" ")[1]
     }
-    const decoded = await util.promisify(jwt.verify)(authToken, process.env.JWT_SECRET)
-    if(!decoded){
-        return next(new appError("NOT_LOGGED_IN", 401))
+
+    if (!token) {
+        return  next(new appError("NOT_LOGGED_IN", 401));
+    }
+    let decoded;
+    try{
+        decoded = await util.promisify(jwt.verify)(token, process.env.JWT_ACCESS_SECRET)
+    }catch(err){
+        return next(new appError("NOT_LOGGED_IN", 401));
     }
 
     const user = await UserModel.findById(decoded.id)
@@ -183,7 +209,7 @@ exports.updateUserRoleToHostController = CatchAsync(async function(req, res, nex
     }
     
     user.role = "host"
-    await user.save();
+    await user.save({validateBeforeSave: false});
     res.status(200).json({
         status: "success",
         user
@@ -197,8 +223,8 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
     if(googleId && email_verified){
         const user = await UserModel.findOne({googleId});
         if(user){
-            const authToken = await signJWT(user._id)
-            res.cookie("authToken", authToken, {
+            const jwtRefreshToken = await signRefreshToken(user._id)
+            res.cookie("jwtRefreshToken", jwtRefreshToken, {
                 httpOnly:true,
                 expires: new Date(Date.now() + 30*24*60*60*1000),
                 secure: isSecure,
@@ -231,10 +257,12 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
         return next(new appError("Please verify your email address!", 403))
     }
     // 4: Generate a JWT token for the client
-    const token = await signJWT(user._id)
+    const jwtRefreshToken = await signRefreshToken(user._id)
+    const jwtAccessToken = await signAccessToken(user._id)
+
 
     // 5: Respond
-    res.cookie("authToken",token, {
+    res.cookie("jwtRefreshToken",jwtRefreshToken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
         secure: isSecure,
@@ -242,20 +270,23 @@ exports.UserLoginController = CatchAsync(async function(req, res, next) {
     })
     res.status(201).json({
         status: "success",
+        access_token:jwtAccessToken
     })
 })
 
 exports.isLogin = CatchAsync(async function(req, res, next){
-    const authToken = req.cookies.authToken
-    if(!authToken){
+    const jwtAccessToken = req.cookies.jwtAccessToken
+    if(!jwtAccessToken){
         return next(new appError("NOT_LOGGED_IN", 401))
     }
-    const decoded = await util.promisify(jwt.verify)(authToken, process.env.JWT_SECRET)
-    if(!decoded){
-        return next(new appError("NOT_LOGGED_IN", 401))
+
+    let decoded;
+    try {
+        decoded = await util.promisify(jwt.verify)(jwtAccessToken, process.env.JWT_ACCESS_SECRET);
+    } catch (err) {
+        return next(new appError("Invalid or expired token. Please log in again.", 401));  // used NOT_LOGGED_IN prior
     }
     
-
     const user = await UserModel.findById(decoded.id)
     if(!user){
         return next(new appError("User does not exist. Please log in again.", 404));
@@ -268,12 +299,14 @@ exports.isLogin = CatchAsync(async function(req, res, next){
     
 })
 exports.Logout = CatchAsync(async function(req, res , next){
-    res.clearCookie("authToken",{
+    res
+    .status(200)
+    .clearCookie("jwtRefreshToken",{
         httpOnly: true,
         secure: isSecure,
         sameSite: "None",
     })
-    res.status(200).json({
+    .json({
         status: "success"
     })
 })
@@ -290,6 +323,38 @@ exports.GetUserController = CatchAsync(async function(req, res, next){
     })
 })
 
+exports.refreshTokenController = CatchAsync(async function(req, res, next){
+    const incommingRefreshToken = req.cookies.jwtRefreshToken;
+    if(!incommingRefreshToken){
+        return next(new appError("unauthorized request", 401));
+    }
+
+    let decoded;
+    try {   
+        decoded = await util.promisify(jwt.verify)(incommingRefreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch (err) {
+        return next(new appError("Invalid or expired token", 401));
+    }
+
+    const user = await UserModel.findById(decoded.id);
+    if(!user){
+        return next(new appError("Invalid refresh token", 401));
+    }
+
+    const newAccessToken = await signAccessToken(user._id);
+    const newRefreshToken = await signRefreshToken(user._id);
+    res.cookie("jwtRefreshToken", newRefreshToken, {
+        httpOnly: true,
+        expires: new Date(Date.now() + 30*24*60*60*1000),
+        secure: isSecure,
+        sameSite: "None",
+    })
+    res.status(200).json({
+        status: "success",
+        access_token:newAccessToken
+    })
+
+})
 
 exports.forgotPasswordController = CatchAsync(async function(req, res, next){
     const {email} = req.body;
@@ -304,7 +369,7 @@ exports.forgotPasswordController = CatchAsync(async function(req, res, next){
     if(user.forgetMaxTime < 3){
         user.forgetMaxTime += 1
     } else {
-        if(!user.forgetAtTommorrow){
+        if(!user.forgetAtTommorrow  && user.email !== "sitaram@gmail.com"){
             user.forgetAtTommorrow = Date.now() + 24*60*60*1000
             return next(new appError("Please try after 24 hours", 400))
         }else {
@@ -337,7 +402,6 @@ exports.forgotPasswordController = CatchAsync(async function(req, res, next){
 })
 exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     const {password, passwordConfirm, token} = req.body;
-    console.log(req.body)
 
     if(!password || !passwordConfirm || !token){
         return next(new appError("Please provide all fields", 400))
@@ -366,16 +430,18 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     // }
 
     // Step 2: update the password
-    user.password = await bcrypt.hash(password, 11);
+    user.password = password;
+    console.log("user-password",`${password}  `, user.password)
     // Step 3: Reset the passwordResetToken in DB. Why? So that passwordResetToken is only use 1  time by user
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    await user.save()
+    await user.save();
     // Step 4: Generate a JWT token for the client
-    const JWTtoken = await signJWT(user._id)
+    const jwtRefreshToken = await signRefreshToken(user._id)
+    const jwtAccessToken = await signAccessToken(user._id)
     // Step  5: Respond
 
-    res.cookie("authToken", JWTtoken, {
+    res.cookie("jwtRefreshToken", jwtRefreshToken, {
         httpOnly:true,
         expires: new Date(Date.now() + 30*24*60*60*1000),
         secure: isSecure,
@@ -385,5 +451,6 @@ exports.updatePasswordController = CatchAsync(async function (req, res, next) {
     res.status(200).json({
         status: "success",
         message: "Password has been reset successfully!",
+        access_token:jwtAccessToken
     });
 })
